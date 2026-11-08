@@ -68,4 +68,21 @@ python3 sdk/spv_build.py sdk/examples/rainbow --base fw_custom2.bin -o fw_rainbo
 `fw_rainbow.bin` (радуга на LED поверх `fw_custom2.bin`) прошит и работает идеально. Тем самым подтверждены: исполнение кода
 с `0x48020c00`, запись и чтение RAM по `0x130000`, `.data`/`.bss`, `mcycle/mcycleh`, `spv_millis()`, `spv_led_rgb()`,
 `spv_led_claim()`, подмена вызовов в `main()` прошивки.
-Не проверено: `spv_log` (буфер в RAM виден только эмулятору), `spv_fw_adc_read`, `spv_reboot_to_bootloader` из своей программы.
+Также на железе работает `examples/bubble` (перехват аудио и кнопок). Не проверено: `spv_log` (буфер в RAM виден только эмулятору), `spv_fw_adc_read`, `spv_reboot_to_bootloader` из своей программы.
+
+## Пример `examples/bubble` — свой звук и бульки на кнопках ✅ на железе
+```sh
+scripts/build_app.sh bubble build/fw_custom2.bin build/fw_bubble.bin
+python3 -I sdk/examples/bubble/test_emu.py       # bit-exact с заводским EQ, кнопки, рендер build/bubble_demo.wav
+```
+- Функция EQ прошивки `0x1668` (её зовёт USB-прерывание на каждый аудиопакет) перенаправлена на `bubble_eq()` через
+  `spv_ram_redirect()`: заводской EQ (бит в бит) + эффект «warm» (бас +4 дБ, кроссфид, мягкий ограничитель).
+- Колбэки кнопок «+»/«−» подменены прямо в RAM-структурах MultiButton: PRESS_DOWN → бульк (у «+» выше, у «−» ниже),
+  LONG_HOLD → бульк на каждый шаг громкости, DOUBLE_CLICK «−» → вкл/выкл эффекта, смена режима EQ → двойной бульк.
+  Подробности — `docs/ARCHITECTURE.md` §10.
+- Бульк синтезируется внутри аудиопотока, поэтому слышен, только пока хост шлёт звук.
+- Параметры звука (`FX_*`, `BUB_*`) — в начале `main.c`.
+
+`spv_ram_redirect(addr, orig0, orig1, fn)` — новый вызов SDK: заменяет первые 8 байт RAM-функции прошивки прыжком в `fn`
+(аргументы и адрес возврата сохраняются; исходные слова проверяются). Код, вызванный из обработчиков прерываний, может
+использовать float (обработчики прошивки сохраняют FPU), но не должен блокировать. Прерывания прошивки вложенные.

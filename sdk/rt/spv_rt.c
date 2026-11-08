@@ -129,6 +129,25 @@ void spv_hsv_to_rgb(uint16_t h, uint8_t s, uint8_t v, uint8_t *r, uint8_t *g, ui
     *r = (uint8_t)R; *g = (uint8_t)G; *b = (uint8_t)B;
 }
 
+/* ---------------------------------------------------------------- перехват RAM-функций */
+bool spv_ram_redirect(uint32_t addr, uint32_t orig0, uint32_t orig1, const void *target)
+{
+    volatile uint32_t *p = (volatile uint32_t *)(uintptr_t)addr;
+    if (addr & 3u) return false;
+    uint32_t off = (uint32_t)(uintptr_t)target - addr;
+    uint32_t auipc = ((off + 0x800u) & 0xfffff000u) | (5u << 7) | 0x17u;      /* auipc t0, hi   */
+    uint32_t jalr  = ((off & 0xfffu) << 20) | (5u << 15) | 0x67u;            /* jalr zero,lo(t0) */
+    if (p[0] == auipc && p[1] == jalr) return true;                          /* уже стоит */
+    if (p[0] != orig0 || p[1] != orig1) return false;
+    uint32_t mst;
+    __asm__ volatile ("csrrci %0, mstatus, 8" : "=r"(mst));                  /* без прерываний */
+    p[1] = jalr;                                                             /* вход — последним */
+    p[0] = auipc;
+    __asm__ volatile (".word 0x0000100f" ::: "memory");   /* fence.i */
+    if (mst & 8u) __asm__ volatile ("csrsi mstatus, 8");
+    return true;
+}
+
 /* ---------------------------------------------------------------- журнал */
 #define SPV_DBG_SIZE 2048u
 char spv_dbg_buf[SPV_DBG_SIZE];

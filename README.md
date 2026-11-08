@@ -22,6 +22,9 @@
   Поправлена полярность ШИМ и фаза «погашено» при мигании (LED с общим анодом).
 - 🧑‍💻 **SDK для C** (`sdk/`): `app_init()` / `app_loop()` внутри прошивки, таймеры, управление светодиодом, журнал.
   Пример: радуга на LED (`sdk/examples/rainbow`) работает на реальном устройстве.
+- 🔊 **Свой звук** (`sdk/examples/bubble`): программа встраивается в аудио-тракт (USB → EQ → ЦАП), добавляет эффект «warm»
+  (бас, кроссфид для наушников, мягкий ограничитель) и **мягкий булькающий звук на кнопках громкости «+»/«−»**.
+  Двойной клик «−» включает/выключает эффект. Проверено на железе.
 - 🧪 **Эмулятор** RV32IMAC + F + Andes (AndeStar V5, DSP): прошивка загружается до главного цикла, перед прошивкой образ можно проверить.
 
 ## Быстрый старт
@@ -29,7 +32,7 @@
 Нужны: Linux, Python 3, `gcc-riscv64-unknown-elf` (для SDK; Debian/Ubuntu: `sudo apt install gcc-riscv64-unknown-elf`), Chrome/Edge для прошивальщика.
 
 ```sh
-git clone <этот репозиторий> && cd moondrop_rew
+git clone https://github.com/muxfunhome-droid/moondrop-dawn-pro-2-dev-sdk && cd moondrop-dawn-pro-2-dev-sdk
 
 # 1. положите СВОЙ образ в firmware/ (сборка «Nov 17 2025 13:50:18»)
 cp ~/path/to/firmware.bin firmware/firmware.bin
@@ -44,6 +47,7 @@ scripts/build_custom.sh firmware/firmware.bin build/fw_custom2.bin
 
 # 4. (необязательно) своя программа на C поверх него
 scripts/build_app.sh rainbow build/fw_custom2.bin build/fw_rainbow.bin
+scripts/build_app.sh bubble  build/fw_custom2.bin build/fw_bubble.bin    # звук + бульки на кнопках
 
 # 5. открыть web/spv_flasher.html в Chrome, выбрать образ, «Перевести в загрузчик» → «Подключить загрузчик» → «Прошить»
 ```

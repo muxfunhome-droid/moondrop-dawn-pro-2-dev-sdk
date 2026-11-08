@@ -260,6 +260,10 @@ document.getElementById('btnEnter').addEventListener('click',async()=>{
     const [d]=await navigator.hid.requestDevice({filters:[]});
     if(!d){log('устройство не выбрано','log-warn');return;}
     log('выбрано: '+(d.productName||'?')+' VID '+hex(d.vendorId,4)+' PID '+hex(d.productId,4),'log-dim');
+    if(d.vendorId===0x0666&&d.productId===0x0888){
+      log('это уже загрузчик — шаг 2 не нужен. Жми «Подключить загрузчик (0x0666:0x0888)» и прошивай.','log-warn');
+      return;
+    }
     if(!d.opened) await d.open();
     // пакет обычной команды: [OP=1, CMD=255, LEN=0], паддинг до длины репорта
     const pkt=new Uint8Array(3); pkt[0]=1; pkt[1]=255; pkt[2]=0;
