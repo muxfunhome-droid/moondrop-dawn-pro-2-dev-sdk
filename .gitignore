@@ -7,3 +7,8 @@ __pycache__/
 *.o
 *.elf
 *.map
+
+# собранные программы для ПК из примеров
+sdk/examples/*/host/calc
+sdk/examples/*/host/life
+*.wav

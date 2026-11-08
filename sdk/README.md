@@ -81,6 +81,13 @@ from `0x48020c00`, writing and reading RAM at `0x130000`, `.data`/`.bss`, `mcycl
 `examples/bubble` (audio and button hooks, `spv_ram_redirect`) also works on hardware.
 Not verified: `spv_log` (the RAM buffer is visible only to the emulator), `spv_fw_adc_read`, `spv_reboot_to_bootloader` from your own program.
 
+## Examples `examples/calc` and `examples/life` — PC ↔ chip over USB HID
+Both redirect the stock vendor-HID handler `0x8d84` with `spv_ram_redirect()` and use their own command byte in report 75
+(`0xCA` calculator, `0xCB` Game of Life); every other report goes to the stock code, so reflashing keeps working.
+A reply is sent with the firmware's `0x8418(ctx, buf, 64)`; it copies into the endpoint FIFO at once, so any buffer will do.
+`life` shows how to do long computations without blocking: copy the request in the handler, compute in `app_loop()` in portions,
+reply when done. Each example has a Linux program in `host/` and a `test_emu.py`. See their READMEs.
+
 ## Example `examples/bubble` — custom sound and bubbles on the buttons ✅ on hardware
 ```sh
 scripts/build_app.sh bubble build/fw_custom2.bin build/fw_bubble.bin

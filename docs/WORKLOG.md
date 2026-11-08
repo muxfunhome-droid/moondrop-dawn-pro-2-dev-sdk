@@ -33,6 +33,8 @@ it safely (the LED colours first) and make it possible to write your own program
 | 9 | WebHID access rights | a udev rule for normal mode (`35d8`) and the bootloader (`0666:0888`) |
 | 10 | Decoding the audio path and the buttons | the samples go through the CPU: USB interrupt → `0x7018` → EQ `0x1668` (10 biquads `0x9a2c`) → DAC; buttons are a MultiButton library, "+" = pin 8, "−" = pin 34 (ARCHITECTURE §10) |
 | 11 | `sdk/examples/bubble`: custom sound + bubbles on the buttons | `spv_ram_redirect()` in the SDK; EQ bit-exact with the stock one (emulator), ✅ **works on hardware**: the "warm" effect and bubbles on "+"/"−" |
+| 12 | Vendor HID channel PC ↔ chip | receive buffer `0x106554`, handler `0x8d84`, send `0x8418`; `sdk/examples/calc` — ✅ a calculator on the DAC works on hardware |
+| 13 | `sdk/examples/life` | Game of Life 10×10 on the chip, computed in portions in `app_loop()`, cycle detection; 🧪 emulator |
 
 ---------------------------------------------------------------------------------------------
 ## 3. How things work
@@ -127,6 +129,8 @@ The CPU section grows from `0x20ad4` to `0x20bc0` (LED patches) and further to t
 | `spv_log` (ring buffer) | 🧪 (readable only by the emulator) |
 | Audio: EQ hook `0x1668`, the "warm" effect, bubbles on "+"/"−" (`examples/bubble`) | ✅ on hardware; EQ bit-exact with the stock one and the buttons — 🧪 (`test_emu.py`) |
 | CPU load of the effect at 192 kHz and above | 🟡 not measured |
+| Calculator over HID (`examples/calc`): expressions, replies, reflashing still works | ✅ on hardware (16 510 cycles for `(2+3)*-2^3/7`); 🧪 19 expressions in `test_emu.py` |
+| Game of Life over HID (`examples/life`) | 🧪 11 cases vs a Python reference; not yet run on hardware |
 | Headset buttons via the ADC, HID commands | 🟡 |
 | Flash dump from the device in the flasher | 🟡 (the button exists; writing a dump back was not tested) |
 

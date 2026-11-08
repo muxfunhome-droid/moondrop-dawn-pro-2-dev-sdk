@@ -30,7 +30,22 @@ and run your own DSP. The `bubble` example does exactly that: a "warm" sound eff
 - 🔊 **Custom sound** (`sdk/examples/bubble`): the program hooks into the audio path (USB → EQ → DAC). It adds a "warm" effect
   (bass shelf, headphone crossfeed, soft limiter) and a **soft bubbling sound on the "+"/"−" volume buttons**.
   Double-click "−" to toggle the effect. Verified on hardware.
+- 🧮 **PC ↔ chip over USB HID** (`sdk/examples/calc`): a calculator that evaluates expressions on the DAC's CPU. Verified on hardware.
 - 🧪 **Emulator** for RV32IMAC + F + Andes extensions (AndeStar V5, DSP): the firmware boots to its main loop, so you can test an image before flashing it.
+
+## Fun examples
+
+All of them are C programs from `sdk/examples/`, built on top of the stock firmware (audio, USB, buttons keep working).
+
+| Example | What it does | Status |
+|---|---|---|
+| 🫧 [`bubble`](sdk/examples/bubble) | hooks the **audio path**: a "warm" effect (bass, crossfeed, soft limiter) and a **soft bubbling sound on the volume buttons**; double-click "−" toggles the effect | ✅ hardware |
+| 🧮 [`calc`](sdk/examples/calc) | **a calculator inside the DAC**: the PC sends `"(2+3)*-2^3/7"` over USB HID, the RISC-V core parses and evaluates it (`double`, brackets, `^`, `sqrt`) and replies with the result and the cycle count (16 510 cycles = 46 µs) | ✅ hardware |
+| 🧬 [`life`](sdk/examples/life) | **Conway's Game of Life on 10×10** computed on the chip: send a board and a step count, get the final board back; bit-parallel step, cycle detection makes 4 billion steps instant, terminal animation | 🧪 emulator |
+| 🌈 [`rainbow`](sdk/examples/rainbow) | a rainbow on the RGB LED | ✅ hardware |
+
+`calc` and `life` come with a small Linux program (`host/`, plain C, no dependencies, talks to `/dev/hidraw*`) and an emulator test.
+They show a general **PC ↔ chip channel** over the vendor HID report: anything you can compute in C can run in the DAC.
 
 ## Quick start
 
@@ -53,6 +68,8 @@ scripts/build_custom.sh firmware/firmware.bin build/fw_custom2.bin
 # 4. (optional) your own C program on top of it
 scripts/build_app.sh rainbow build/fw_custom2.bin build/fw_rainbow.bin
 scripts/build_app.sh bubble  build/fw_custom2.bin build/fw_bubble.bin    # sound effect + bubbles on the buttons
+scripts/build_app.sh calc    build/fw_custom2.bin build/fw_calc.bin      # calculator (PC program: make -C sdk/examples/calc/host)
+scripts/build_app.sh life    build/fw_custom2.bin build/fw_life.bin      # Game of Life (make -C sdk/examples/life/host)
 
 # 5. open web/spv_flasher.html in Chrome, pick the image, "enter bootloader" → "connect bootloader" → "flash"
 #    (if the device is already in the bootloader, 0666:0888, skip "enter bootloader")

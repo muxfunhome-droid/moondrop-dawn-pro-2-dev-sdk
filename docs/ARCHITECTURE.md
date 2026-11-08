@@ -254,3 +254,11 @@ Structure of 44 bytes: `+4` id, `+8` level-read function, `+12+4·event` callbac
 
 The volume step happens on PRESS_UP (and every 100 ticks of HOLD); volume is `int16 [0x11d22c]`, 0 = maximum, step ≈153.
 At the limit → LED event 2. A long "+" (1500 HOLD ticks) toggles the EQ preset 8 ↔ the saved one.
+
+**Vendor HID channel PC ↔ chip** (used by `sdk/examples/calc` and `life`). ✅
+- Reception: OUT reports (interrupt endpoint, `0x748c` in IRQ 34, or `SET_REPORT` over control, `0x480052d4`) are copied into the buffer of
+  `msg = 0x106554 {u32 state; u8 *buf}` and `state = 2` is set. The bootloader command `[75,1,255]` is also caught right there in the IRQ.
+- Processing: the main-loop audio task `0x1138` calls `0x8d84(ctx 0x121ec0, msg, …)`: report ID 75 only; `buf[1]` = 1 (subcommands `buf[2]`) or 128;
+  anything else is ignored; at the end `state = 1`. The first 8 bytes of `0x8d84` can be redirected, the stock logic continues at `0x8d94` with `a3 = buf`.
+- Reply: `0x8418(ctx, buf, len)` → `0x6d94` → `0x7f68(ep, len, buf)` copies the data into the endpoint FIFO (`0x200d0020 + 4·ep`) by the CPU at once,
+  so the buffer can be reused right after the call.
