@@ -1,5 +1,8 @@
 # moondrop_rew
 
+**Язык:** [English](README.md) · Русский
+
+
 Реверс-инжиниринг прошивки USB-ЦАПа **Moondrop DAWN PRO2** (SPACETOUCH SPV4040, ядро Andes RISC-V) и инструменты для её модификации:
 эмулятор, прошивальщик, смена цветов светодиода и **SDK для написания своих программ на C**.
 
@@ -72,11 +75,11 @@ scripts/build_app.sh bubble  build/fw_custom2.bin build/fw_bubble.bin    # зв�
 
 ## Документация
 
-- [`docs/WORKLOG.md`](docs/WORKLOG.md) — что сделано, принципы работы, список всех изменений прошивки и что проверено на железе.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — карта прошивки: память, периферия, функции, эмулятор, рецепт патчей.
-- [`docs/LED_findings.md`](docs/LED_findings.md) — как устроен светодиод: пины, ШИМ, полярность, события.
-- [`docs/README_flasher.md`](docs/README_flasher.md) — формат образа и протокол загрузчика.
-- [`sdk/README.md`](sdk/README.md) — как писать программы на C.
+- [`docs/WORKLOG.md`](docs/WORKLOG.ru.md) — что сделано, принципы работы, список всех изменений прошивки и что проверено на железе.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.ru.md) — карта прошивки: память, периферия, функции, эмулятор, рецепт патчей.
+- [`docs/LED_findings.md`](docs/LED_findings.ru.md) — как устроен светодиод: пины, ШИМ, полярность, события.
+- [`docs/README_flasher.md`](docs/README_flasher.ru.md) — формат образа и протокол загрузчика.
+- [`sdk/README.md`](sdk/README.ru.md) — как писать программы на C.
 
 (Документы написаны во время работы над проектом; в `ARCHITECTURE.md` и других имена Python-файлов указаны без `tools/`.)
 
