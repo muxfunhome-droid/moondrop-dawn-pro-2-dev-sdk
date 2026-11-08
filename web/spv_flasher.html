@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPV Flasher</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171c22; --panel2:#1e252d; --fg:#e6edf3; --mut:#8b98a5;
+    --acc:#4c9eff; --ok:#3fb950; --bad:#f85149; --warn:#d29922; --line:#2a333d;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f4f6f8; --panel:#fff; --panel2:#eef1f4; --fg:#1b2026; --mut:#5b6670;
+      --acc:#1f6feb; --ok:#1a7f37; --bad:#cf222e; --warn:#9a6700; --line:#d6dde3;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    padding:16px;max-width:900px;margin-inline:auto}
+  h1{font-size:18px;margin:0 0 2px}
+  .sub{color:var(--mut);font-size:12px;margin-bottom:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;margin-bottom:14px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:0 0 10px}
+  button{background:var(--acc);color:#fff;border:0;border-radius:7px;padding:9px 14px;
+    font:inherit;font-weight:600;cursor:pointer}
+  button.ghost{background:var(--panel2);color:var(--fg);border:1px solid var(--line)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  input[type=number],input[type=text]{background:var(--panel2);color:var(--fg);
+    border:1px solid var(--line);border-radius:6px;padding:7px 9px;font:inherit;width:90px}
+  input[type=file]{color:var(--mut)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;background:var(--panel2);border:1px solid var(--line)}
+  .pill.ok{color:var(--ok);border-color:var(--ok)}
+  .pill.bad{color:var(--bad);border-color:var(--bad)}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+  th,td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--mut);font-weight:600}
+  #bar{height:8px;background:var(--panel2);border-radius:5px;overflow:hidden;margin-top:10px}
+  #barfill{height:100%;width:0;background:var(--acc);transition:width .15s}
+  #log{background:#0a0d10;color:#c9d4df;border:1px solid var(--line);border-radius:8px;
+    padding:10px;height:230px;overflow:auto;white-space:pre-wrap;font-size:12px;margin-top:8px}
+  .log-ok{color:var(--ok)} .log-bad{color:var(--bad)} .log-warn{color:var(--warn)} .log-dim{color:var(--mut)}
+  .warn-box{background:color-mix(in srgb,var(--warn) 14%,transparent);border:1px solid var(--warn);
+    border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--fg)}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px}
+  label.lbl{color:var(--mut);font-size:12px}
+</style>
+</head>
+<body>
+<h1>SPV Flasher</h1>
+<div class="sub">WebHID-прошивальщик для ЦАП формата «SPV APP Tag» (SpacETouch / SPV40xx). Протокол восстановлен из hub.moondroplab.tech. Chrome/Edge, HTTPS или file://.</div>
+
+<div class="card warn-box">
+  <b>Читать перед первой прошивкой.</b> Это не официальный инструмент. Прошивка неверного образа может
+  перевести устройство в режим загрузчика (VID 0x0666 / PID 0x0888), откуда оно восстанавливается
+  повторной заливкой рабочего образа. <b>Сначала сними дамп оригинала с устройства и сохрани его.</b>
+  Не отключай кабель во время записи.
+</div>
+
+<div class="card">
+  <h2>1 · Образ прошивки (.bin)</h2>
+  <div class="row">
+    <input type="file" id="file" accept=".bin">
+    <span id="fstat" class="pill">файл не выбран</span>
+  </div>
+  <div id="fwinfo"></div>
+</div>
+
+<div class="card">
+  <h2>2 · Вход в режим загрузчика (если устройство в обычном режиме)</h2>
+  <div class="row">
+    <button class="ghost" id="btnEnter">Перевести в загрузчик</button>
+    <label class="lbl">reportId <input type="number" id="rid" value="75" min="0" max="255"></label>
+    <span class="log-dim">шлёт команду [OP=1, CMD=255]. reportId зависит от устройства (Moondrop=75).</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>3 · Загрузчик и запись</h2>
+  <div class="row">
+    <button id="btnBoot">Подключить загрузчик (0x0666:0x0888)</button>
+    <span id="bstat" class="pill">не подключён</span>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <label class="lbl"><input type="checkbox" id="verify" checked> проверять записанное чтением флеша</label>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <button id="btnFlash" disabled>Прошить</button>
+    <button class="ghost" id="btnId" disabled>Прочитать Flash ID</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <button class="ghost" id="btnDump" disabled>Снять дамп flash</button>
+    <label class="lbl">с 0x48000000, длина <input type="text" id="dumplen" value="0x40000" size="9"></label>
+    <span class="log-dim">0x40000 = 256 КБ: код + конфиг USB @0x38000 + настройки @0x39bc0 + ключ чипа @0x3e000. Сделай ДО первой прошивки.</span>
+  </div>
+  <div id="bar"><div id="barfill"></div></div>
+  <div id="log"></div>
+</div>
+
+<script>
+//================= CRC32 (IEEE, как crc32.js / SheetJS) =================
+const CRCTAB=(()=>{const t=new Int32Array(256);for(let n=0;n<256;n++){let c=n;
+  for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c;}return t;})();
+function crc32(buf){let c=-1;for(let i=0;i<buf.length;i++)c=(c>>>8)^CRCTAB[(c^buf[i])&0xFF];
+  return (c^-1)>>>0;}
+
+//================= утилиты =================
+const LE=(v,n)=>{const a=new Uint8Array(n);for(let i=0;i<n;i++)a[i]=(v>>>(i*8))&0xFF;return a;};
+const rdLE=(b,o,n)=>{let v=0;for(let i=0;i<n;i++)v|=b[o+i]<<(i*8);return v>>>0;};
+const cat=(...a)=>{let L=a.reduce((s,x)=>s+x.length,0),r=new Uint8Array(L),p=0;
+  for(const x of a){r.set(x,p);p+=x.length;}return r;};
+const hex=(n,w=8)=>'0x'+(n>>>0).toString(16).padStart(w,'0');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+const logEl=document.getElementById('log');
+function log(msg,cls){const d=document.createElement('div');if(cls)d.className=cls;
+  d.textContent=msg;logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;}
+function setBar(p){document.getElementById('barfill').style.width=Math.max(0,Math.min(100,p))+'%';}
+
+//================= парсер SPV APP Tag (зеркало класса jW) =================
+const MAGIC=0x40565053, ADDR_MASK=0x00FFFFFF, ALT_MASK=0xFFFFFF00, ALT_VAL=0x4F414D00;
+function parseFirmware(buf){
+  if(buf.length<4096) throw new Error('файл < 4096 байт');
+  if(rdLE(buf,4,4)!==MAGIC) throw new Error("нет magic 'SPV@' по смещению 4");
+  const entry=rdLE(buf,8,4), flag=rdLE(buf,12,4);
+  let dateF,timeF,cntO,dirO;
+  if((flag&ALT_MASK)!==ALT_VAL){dateF=36;timeF=40;cntO=44;dirO=64;}
+  else{dateF=20;timeF=24;cntO=28;dirO=32;}
+  const n=rdLE(buf,cntO,4);
+  if(n<=0||n>100) throw new Error('число секций='+n);
+  const secs=[];
+  for(let i=0;i<n;i++){const e=dirO+i*16;
+    const name=String.fromCharCode(...buf.slice(e,e+4)).replace(/\0.*$/,'').trim();
+    const address=rdLE(buf,e+4,4), size=rdLE(buf,e+8,4), checksum=rdLE(buf,e+12,4);
+    const foff=address&ADDR_MASK, chkOff=e+12;
+    secs.push({name,address,size,checksum,foff,chkOff});
+  }
+  const cstr=o=>{if(o>=buf.length)return'';let e=o;while(e<buf.length&&buf[e])e++;
+    return String.fromCharCode(...buf.slice(o,e));};
+  return {entry,flag,secs,buildDate:cstr(rdLE(buf,dateF,4)&ADDR_MASK),
+          buildTime:cstr(rdLE(buf,timeF,4)&ADDR_MASK)};
+}
+// checksum = сумма байт данных секции; собственное поле checksum = 0, если внутри
+function calcChecksum(buf,s){
+  let t=0;for(let i=s.foff;i<s.foff+s.size;i++)t=(t+buf[i])>>>0;
+  if(s.foff<=s.chkOff&&s.chkOff<s.foff+s.size){
+    let sub=0;for(let i=s.chkOff;i<s.chkOff+4;i++)sub=(sub+buf[i])>>>0;t=(t-sub)>>>0;}
+  return t>>>0;
+}
+
+let FW=null; // {buf, meta}
+document.getElementById('file').addEventListener('change',async ev=>{
+  const f=ev.target.files[0]; if(!f) return;
+  const buf=new Uint8Array(await f.arrayBuffer());
+  const fstat=document.getElementById('fstat'), info=document.getElementById('fwinfo');
+  try{
+    const meta=parseFirmware(buf); FW={buf,meta};
+    fstat.textContent=f.name+' · '+buf.length+' B'; fstat.className='pill ok';
+    let allok=true, rows='';
+    for(const s of meta.secs){
+      if(s.size===0) continue;
+      const calc=calcChecksum(buf,s), ok=calc===s.checksum; allok=allok&&ok;
+      rows+=`<tr><td>${s.name}</td><td>${hex(s.address)}</td><td>${hex(s.size,6)}</td>`+
+            `<td>${hex(s.checksum)}</td><td class="${ok?'log-ok':'log-bad'}">${ok?'OK':hex(calc)}</td></tr>`;
+    }
+    info.innerHTML=`<div class="row" style="margin-top:8px">`+
+      `<span class="pill">entry ${hex(meta.entry)}</span>`+
+      `<span class="pill">${meta.buildDate} ${meta.buildTime}</span>`+
+      `<span class="pill ${allok?'ok':'bad'}">checksum ${allok?'OK':'MISMATCH'}</span></div>`+
+      `<table><tr><th>секция</th><th>адрес</th><th>размер</th><th>checksum</th><th>проверка</th></tr>${rows}</table>`;
+    updateFlashBtn();
+  }catch(e){ FW=null; fstat.textContent='ошибка: '+e.message; fstat.className='pill bad';
+    info.innerHTML=''; updateFlashBtn(); }
+});
+
+//================= протокол загрузчика (зеркало класса KW) =================
+const MMAGIC=0x58585542, SLICE=256;
+class Proto{
+  constructor(){this.seq=0;}
+  reset(){this.seq=0;}
+  header(t,n,flag=0,len=0){
+    const cmd=(t|(n<<8))>>>0;
+    const h=cat(LE(MMAGIC,4),LE(cmd,2),LE(this.seq++&0xFF,1),LE(flag,1),LE(len,2));
+    return cat(h,LE(crc32(h),4));
+  }
+  msg(t,n,flag=0,content=null){
+    if(content&&content.length){
+      const h=this.header(t,n,flag,content.length);
+      return cat(h,content,LE(crc32(content),4));
+    }
+    return this.header(t,n,flag,0);
+  }
+  handshake(){return this.msg(16,1,1);}                 // cmd 0x0110
+  setWrite(addr,len){return this.msg(32,1,0,cat(LE(addr,4),LE(len,4),LE(SLICE,4),LE(0,4)));} //0x0120
+  writeData(chunk){return this.msg(33,1,0,chunk);}      // cmd 0x0121
+  setRead(addr,len){return this.msg(34,1,0,cat(LE(addr,4),LE(len,4),LE(SLICE,4),LE(0,4)));}  //0x0122
+  readData(){return this.msg(35,1);}                    // cmd 0x0123
+  endReset(){return this.msg(36,1);}                    // cmd 0x0124
+  flashId(){return this.msg(37,1);}                     // cmd 0x0125
+  static parse(buf){
+    if(buf.length<14) return null;
+    const h={magic:rdLE(buf,0,4),cmd:rdLE(buf,4,2),seq:buf[6],flag:buf[7],
+             length:rdLE(buf,8,2),crc32:rdLE(buf,10,4)};
+    if(h.magic!==MMAGIC) throw new Error('bad magic в ответе '+hex(h.magic));
+    if(crc32(buf.slice(0,10))!==h.crc32) throw new Error('CRC заголовка ответа');
+    const m={header:h};
+    if(h.length>0){
+      if(buf.length<14+h.length+4) throw new Error('ответ оборван');
+      m.content=buf.slice(14,14+h.length);
+      if(crc32(m.content)!==rdLE(buf,14+h.length,4)) throw new Error('CRC тела ответа');
+    }
+    return m;
+  }
+}
+
+//================= HID-транспорт =================
+let DEV=null, OUTLEN=0, RXQ=[], RXWAIT=null;
+function outReportLen(dev){
+  for(const c of dev.collections||[]){
+    for(const r of c.outputReports||[]){
+      if(r.reportId===0){
+        let bits=0;for(const it of r.items||[])bits+=(it.reportSize||0)*(it.reportCount||0);
+        return Math.ceil(bits/8);
+      }
+    }
+  }
+  return 0;
+}
+function onInput(e){
+  const data=new Uint8Array(e.data.buffer);
+  if(RXWAIT){const w=RXWAIT;RXWAIT=null;w(data);} else RXQ.push(data);
+}
+function nextReport(timeout=5000){
+  if(RXQ.length) return Promise.resolve(RXQ.shift());
+  return new Promise((res,rej)=>{
+    const t=setTimeout(()=>{RXWAIT=null;rej(new Error('таймаут ответа'));},timeout);
+    RXWAIT=d=>{clearTimeout(t);res(d);};
+  });
+}
+async function sendRaw(bytes){
+  let out=bytes;
+  if(OUTLEN&&bytes.length<OUTLEN){const p=new Uint8Array(OUTLEN);p.set(bytes);out=p;}
+  await DEV.sendReport(0,out);
+}
+async function sendRecv(bytes,timeout=5000){ RXQ.length=0; await sendRaw(bytes); return nextReport(timeout); }
+
+//================= UI-логика =================
+function updateFlashBtn(){
+  document.getElementById('btnFlash').disabled=!(FW&&DEV);
+  document.getElementById('btnId').disabled=!DEV;
+  document.getElementById('btnDump').disabled=!DEV;
+}
+
+document.getElementById('btnEnter').addEventListener('click',async()=>{
+  const rid=+document.getElementById('rid').value||0;
+  try{
+    const [d]=await navigator.hid.requestDevice({filters:[]});
+    if(!d){log('устройство не выбрано','log-warn');return;}
+    log('выбрано: '+(d.productName||'?')+' VID '+hex(d.vendorId,4)+' PID '+hex(d.productId,4),'log-dim');
+    if(!d.opened) await d.open();
+    // пакет обычной команды: [OP=1, CMD=255, LEN=0], паддинг до длины репорта
+    const pkt=new Uint8Array(3); pkt[0]=1; pkt[1]=255; pkt[2]=0;
+    let olen=0;
+    for(const c of d.collections||[])for(const r of c.outputReports||[])
+      if(r.reportId===rid){let b=0;for(const it of r.items||[])b+=(it.reportSize||0)*(it.reportCount||0);olen=Math.ceil(b/8);}
+    let out=pkt; if(olen&&pkt.length<olen){out=new Uint8Array(olen);out.set(pkt);}
+    await d.sendReport(rid,out);
+    log('команда входа в загрузчик отправлена (reportId '+rid+'). Устройство должно переподключиться как 0x0666:0x0888.','log-ok');
+    await d.close();
+  }catch(e){log('вход в загрузчик: '+e.message,'log-bad');}
+});
+
+document.getElementById('btnBoot').addEventListener('click',async()=>{
+  const bstat=document.getElementById('bstat');
+  try{
+    const [d]=await navigator.hid.requestDevice({filters:[{vendorId:0x0666,productId:0x0888}]});
+    if(!d){log('загрузчик не выбран','log-warn');return;}
+    if(DEV){try{DEV.removeEventListener('inputreport',onInput);await DEV.close();}catch{}}
+    DEV=d; if(!DEV.opened) await DEV.open();
+    DEV.addEventListener('inputreport',onInput);
+    OUTLEN=outReportLen(DEV);
+    bstat.textContent='подключён · '+(DEV.productName||'USB20')+' · out='+OUTLEN+'B';
+    bstat.className='pill ok';
+    log('загрузчик подключён. Длина output-репорта: '+OUTLEN+' байт.','log-ok');
+    if(OUTLEN && OUTLEN<274) log('внимание: репорт < 274Б — запись 256Б чанка может не влезть. Проверь дескриптор.','log-warn');
+    updateFlashBtn();
+  }catch(e){log('подключение загрузчика: '+e.message,'log-bad');}
+});
+
+document.getElementById('btnId').addEventListener('click',async()=>{
+  const p=new Proto(); p.reset();
+  try{
+    const r=Proto.parse(await sendRecv(p.flashId(),3000));
+    log('Flash ID ответ: '+(r&&r.content?[...r.content].map(x=>x.toString(16).padStart(2,'0')).join(' '):'(пусто)'),'log-ok');
+  }catch(e){log('Flash ID: '+e.message,'log-bad');}
+});
+
+document.getElementById('btnDump').addEventListener('click',async()=>{
+  if(!DEV) return;
+  const btn=document.getElementById('btnDump'); btn.disabled=true;
+  const lv=document.getElementById('dumplen').value.trim().toLowerCase();
+  const len=(lv.startsWith('0x')?parseInt(lv.slice(2),16):parseInt(lv,10))||0x40000;
+  const base=0x48000000, p=new Proto(); p.reset(); setBar(0);
+  try{
+    log(`--- дамп flash ${hex(base)} … ${hex(base+len)} (${len} Б) ---`,'log-dim');
+    const hr=Proto.parse(await sendRecv(p.handshake(),5000));
+    if(hr&&hr.content&&hr.content.length>=44) log('  chipId='+hex(rdLE(hr.content,40,4)),'log-ok');
+    Proto.parse(await sendRecv(p.setRead(base,len),5000));
+    let rd=new Uint8Array(0);
+    while(rd.length<len){
+      const rr=Proto.parse(await sendRecv(p.readData(),5000));
+      if(!rr||!rr.content||!rr.content.length) throw new Error('пустой ответ чтения @'+hex(base+rd.length));
+      rd=cat(rd,rr.content); setBar(rd.length/len*100);
+    }
+    rd=rd.slice(0,len);
+    const name=`spv_dump_${hex(base)}_${hex(len)}_${new Date().toISOString().replace(/[:.]/g,'-')}.bin`;
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([rd]));
+    a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+    const key=rd.slice(0x3e000,0x3e008);
+    log(`дамп сохранён: ${name}`,'log-ok');
+    if(len>=0x3e008) log('  ключ чипа @0x3e000: '+[...key].map(x=>x.toString(16).padStart(2,'0')).join(' ')+
+      ([...key].every(x=>x===0xff)?'  (ПУСТО — странно, проверь)':''),'log-dim');
+    log('  загрузчик остаётся активным — можно прошивать или отключить кабель.','log-dim');
+  }catch(e){ log('дамп: '+e.message,'log-bad'); }
+  finally{ btn.disabled=!DEV; }
+});
+
+document.getElementById('btnFlash').addEventListener('click',async()=>{
+  if(!(FW&&DEV)) return;
+  const btn=document.getElementById('btnFlash'); btn.disabled=true;
+  const doVerify=document.getElementById('verify').checked;
+  const p=new Proto(); p.reset(); setBar(0);
+  try{
+    log('--- старт прошивки ---','log-dim');
+    // handshake
+    log('handshake...');
+    const hr=Proto.parse(await sendRecv(p.handshake(),5000));
+    if(hr&&hr.content&&hr.content.length>=44){
+      log('  chipId='+hex(rdLE(hr.content,40,4))+'  bootloader='+hex(rdLE(hr.content,4,4)),'log-ok');
+    } else log('  рукопожатие прошло (короткий ответ)','log-warn');
+    await sleep(300);
+
+    const files=FW.meta.secs.filter(s=>s.size>0);
+    let done=0, totalChunks=files.reduce((a,s)=>a+Math.ceil(s.size/SLICE),0);
+    for(const s of files){
+      const data=FW.buf.slice(s.foff,s.foff+s.size);
+      log(`секция ${s.name}: ${hex(s.address)} · ${s.size} Б`);
+      Proto.parse(await sendRecv(p.setWrite(s.address,data.length),5000));
+      for(let off=0;off<data.length;off+=SLICE){
+        const chunk=data.slice(off,Math.min(off+SLICE,data.length));
+        const resp=Proto.parse(await sendRecv(p.writeData(chunk),5000));
+        if(resp&&resp.content&&resp.content.length>=1&&resp.content[0]!==0)
+          throw new Error(`запись @${hex(s.address+off)} статус ${resp.content[0]}`);
+        done++; setBar(done/totalChunks*100);
+      }
+      // проверка чтением
+      if(doVerify){
+        log('  проверка чтением...','log-dim');
+        Proto.parse(await sendRecv(p.setRead(s.address,data.length),5000));
+        let rd=new Uint8Array(0);
+        while(rd.length<data.length){
+          const rr=Proto.parse(await sendRecv(p.readData(),5000));
+          if(!rr||!rr.content) throw new Error('пустой ответ чтения');
+          rd=cat(rd,rr.content);
+        }
+        rd=rd.slice(0,data.length);
+        let mism=-1; for(let i=0;i<data.length;i++) if(rd[i]!==data[i]){mism=i;break;}
+        if(mism>=0) throw new Error(`несовпадение @${hex(s.address+mism)}: флеш=${rd[mism]} образ=${data[mism]}`);
+        log('  проверка OK ('+data.length+' Б совпали)','log-ok');
+      }
+    }
+    await sleep(200);
+    log('финализация (end+reset)...');
+    await sendRaw(p.endReset()); // устройство перезагружается, ответ может не прийти
+    setBar(100);
+    log('=== прошивка завершена, устройство перезагружается ===','log-ok');
+  }catch(e){
+    log('ОШИБКА: '+e.message,'log-bad');
+    log('устройство, скорее всего, осталось в загрузчике — можно повторить заливку рабочего образа.','log-warn');
+  }finally{ btn.disabled=false; }
+});
+
+if(!('hid' in navigator)){
+  log('navigator.hid недоступен. Нужен Chrome/Edge и защищённый контекст (https:// или file://).','log-bad');
+}
+</script>
+</body>
+</html>
